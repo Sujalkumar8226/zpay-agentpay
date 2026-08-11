@@ -232,7 +232,7 @@ class TestX402ProtocolE2E(unittest.TestCase):
         )
         
         firewall_res = PaymentFirewall.evaluate(self.db, intent_deny)
-        self.assertEqual(firewall_res["decision"], "DENY")
+        self.assertEqual(firewall_res["decision"], "BLOCKED")
         self.assertIn("exceeds maximum per-transaction limit", firewall_res["reasons"][0])
 
     def test_firewall_rules_approval(self):
@@ -243,7 +243,7 @@ class TestX402ProtocolE2E(unittest.TestCase):
             user_id=self.user.id,
             task_id=self.task.id,
             service_id=self.service.id,
-            amount=0.2,  # Exceeds approval threshold of 0.1, but under txn limit 0.5
+            amount=0.45,  # >80% of txn limit 0.5, triggers high risk score exceeding threshold 0.1
             asset="XLM",
             network="stellar:testnet",
             destination=self.service.address,
@@ -251,12 +251,12 @@ class TestX402ProtocolE2E(unittest.TestCase):
         )
         
         # Override service price temporarily to avoid parameter mismatch error
-        self.service.price = 0.2
+        self.service.price = 0.45
         self.db.commit()
 
         firewall_res = PaymentFirewall.evaluate(self.db, intent_apprv)
-        self.assertEqual(firewall_res["decision"], "APPROVAL_REQUIRED")
-        self.assertIn("exceeds auto-approval threshold", firewall_res["reasons"][0])
+        self.assertEqual(firewall_res["decision"], "PENDING_APPROVAL")
+        self.assertIn("exceeds threshold", firewall_res["reasons"][0])
 
     def test_successful_x402_flow(self):
         """Test E: Complete E2E x402 integration payment, verification, and resource unlock."""
@@ -274,7 +274,7 @@ class TestX402ProtocolE2E(unittest.TestCase):
         # 2. Firewall checks
         PaymentIntentManager.transition(self.db, intent, "POLICY_CHECK")
         firewall_res = PaymentFirewall.evaluate(self.db, intent)
-        self.assertEqual(firewall_res["decision"], "ALLOW")
+        self.assertEqual(firewall_res["decision"], "APPROVED")
         
         PaymentIntentManager.transition(self.db, intent, "RISK_CHECK")
         PaymentIntentManager.transition(self.db, intent, "AUTHORIZED")

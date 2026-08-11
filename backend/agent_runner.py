@@ -261,6 +261,7 @@ class AgentRunner:
                     if not risk_assess:
                         risk_assess = RiskAssessment(
                             payment_intent_id=payment.id,
+                            payment_id=payment.id,
                             score=risk_score,
                             risk_level=risk_level,
                             details={"reasons": reasons}
@@ -305,6 +306,7 @@ class AgentRunner:
                         if not approval:
                             approval = ApprovalRequest(
                                 payment_intent_id=payment.id,
+                                payment_id=payment.id,
                                 requester_id=agent.user_id,
                                 status="PENDING"
                             )

@@ -8,6 +8,9 @@ interface DashboardProps {
     agent_total_spent_xlm: number;
     successful_payments: number;
     blocked_payments: number;
+    pending_payments?: number;
+    prevented_spending_xlm?: number;
+    average_risk_score?: number;
     gas_sponsored_xlm: number;
     spending_chart: Array<{ day: string; amount: number }>;
     recent_transactions: Array<{
@@ -27,20 +30,26 @@ export default function Dashboard({ analyticsData }: DashboardProps) {
     agent_total_spent_xlm = 0.0,
     successful_payments = 0,
     blocked_payments = 0,
+    pending_payments = 0,
+    prevented_spending_xlm = 0.0,
+    average_risk_score = 0.0,
     gas_sponsored_xlm = 0.0,
     spending_chart = [],
     recent_transactions = []
   } = analyticsData;
 
-  const totalSpentUSD = (agent_total_spent_xlm * 0.12).toFixed(2); // Mock USD rate
+  const totalSpentUSD = agent_total_spent_xlm.toFixed(2);
+  const preventedSpentUSD = prevented_spending_xlm.toFixed(2);
   const walletBalUSD = (wallet_balance_xlm * 0.12).toFixed(2);
 
   return (
     <div className="space-y-8">
       {/* Page Title */}
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Financial Overview</h1>
-        <p className="text-sm text-slate-400">Real-time settlement analytics for user wallets and autonomous agents.</p>
+      <div className="flex justify-between items-center border-b border-slate-900 pb-5">
+        <div>
+          <h1 className="text-xl font-bold text-indigo-400">Sentinel Control Dashboard</h1>
+          <p className="text-xs text-slate-400">Real-time payment filtering, spend policies evaluation, and security status.</p>
+        </div>
       </div>
 
       {/* Metrics Row */}
@@ -49,47 +58,44 @@ export default function Dashboard({ analyticsData }: DashboardProps) {
           <div className="absolute top-4 right-4 text-indigo-400 bg-indigo-500/10 p-2 rounded-xl">
             <DollarSign className="h-5 w-5" />
           </div>
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Balance</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Custodial Balance</div>
           <div className="text-2xl font-bold mt-2">
             {wallet_balance_xlm.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} XLM
           </div>
-          <div className="text-xs text-indigo-400 mt-1">~${walletBalUSD} USD</div>
+          <div className="text-xs text-indigo-400 mt-1">~${walletBalUSD} USD (Stellar)</div>
         </div>
 
         <div className="glass-panel p-6 rounded-2xl border-slate-800 relative">
           <div className="absolute top-4 right-4 text-cyan-400 bg-cyan-500/10 p-2 rounded-xl">
             <Cpu className="h-5 w-5" />
           </div>
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agent Spending</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agent Sandbox Spending</div>
           <div className="text-2xl font-bold mt-2">
-            {agent_total_spent_xlm.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} XLM
+            {agent_total_spent_xlm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
           </div>
-          <div className="text-xs text-cyan-400 mt-1">~${totalSpentUSD} USD</div>
+          <div className="text-xs text-cyan-400 mt-1">Simulated payments settled</div>
         </div>
 
         <div className="glass-panel p-6 rounded-2xl border-slate-800 relative">
           <div className="absolute top-4 right-4 text-emerald-400 bg-emerald-500/10 p-2 rounded-xl">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Payments Settled</div>
-          <div className="text-2xl font-bold mt-2 flex items-baseline gap-2">
-            <span>{successful_payments}</span>
-            {blocked_payments > 0 && (
-              <span className="text-xs text-rose-500 font-medium">({blocked_payments} blocked)</span>
-            )}
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Prevented Spending</div>
+          <div className="text-2xl font-bold mt-2">
+            {prevented_spending_xlm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
           </div>
-          <div className="text-xs text-emerald-400 mt-1">100% Stellar Testnet</div>
+          <div className="text-xs text-emerald-400 mt-1">{blocked_payments} policy violations blocked</div>
         </div>
 
         <div className="glass-panel p-6 rounded-2xl border-slate-800 relative">
           <div className="absolute top-4 right-4 text-amber-400 bg-amber-500/10 p-2 rounded-xl">
             <Zap className="h-5 w-5" />
           </div>
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gas Sponsored</div>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Average Risk Score</div>
           <div className="text-2xl font-bold mt-2">
-            {gas_sponsored_xlm.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} XLM
+            {average_risk_score.toFixed(1)}/100
           </div>
-          <div className="text-xs text-amber-400 mt-1">Sponsored by Zpay</div>
+          <div className="text-xs text-amber-400 mt-1">Sentinel firewall metrics</div>
         </div>
       </div>
 

@@ -229,6 +229,7 @@ class RiskAssessment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     payment_intent_id = Column(Integer, ForeignKey("payment_intents.id"), nullable=False)
+    payment_id = Column(Integer, nullable=False)
     score = Column(Integer, nullable=False)  # 0 to 100
     risk_level = Column(String, nullable=False)  # LOW, MEDIUM, HIGH
     details = Column(JSON, nullable=True)
@@ -290,6 +291,7 @@ class ApprovalRequest(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     payment_intent_id = Column(Integer, ForeignKey("payment_intents.id"), nullable=False)
+    payment_id = Column(Integer, nullable=False)
     requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String, default="PENDING")  # PENDING, APPROVED, REJECTED
     decider_id = Column(Integer, ForeignKey("users.id"), nullable=True)

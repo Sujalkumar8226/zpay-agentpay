@@ -4,18 +4,17 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { 
   Cpu, Wallet, Globe, Scale, Users, Shield, CreditCard, 
-  LayoutDashboard, LogOut, ArrowRight, UserPlus, ShieldAlert, RefreshCw
+  LayoutDashboard, LogOut, ArrowRight, UserPlus, ShieldAlert, RefreshCw, Clock
 } from "lucide-react";
 
 import LandingPage from "../components/LandingPage";
 import Dashboard from "../components/Dashboard";
 import AgentControl from "../components/AgentControl";
-import WalletCard from "../components/WalletCard";
-import ServiceMarket from "../components/ServiceMarket";
-import EscrowPortal from "../components/EscrowPortal";
-import UpiBridge from "../components/UpiBridge";
-import BillSplitter from "../components/BillSplitter";
 import SecurityCenter from "../components/SecurityCenter";
+import SpendPolicies from "../components/SpendPolicies";
+import AgentSimulator from "../components/AgentSimulator";
+import Transactions from "../components/Transactions";
+import AuditLogs from "../components/AuditLogs";
 
 export default function Page() {
   const [showLanding, setShowLanding] = useState(true);
@@ -32,7 +31,7 @@ export default function Page() {
 
   // App Navigation
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "agents" | "wallet" | "services" | "escrow" | "upi" | "splits" | "security"
+    "dashboard" | "agents" | "policies" | "simulator" | "transactions" | "audits" | "security"
   >("dashboard");
 
   // Global App Data
@@ -315,13 +314,12 @@ export default function Page() {
   // Sidebar navigation items
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "agents", label: "Autonomous Agents", icon: Cpu },
-    { id: "wallet", label: "Horizon Wallet", icon: Wallet },
-    { id: "services", label: "Service Market", icon: Globe },
-    { id: "escrow", label: "Smart Escrow", icon: Scale },
-    { id: "upi", label: "UPI Fiat Bridge", icon: CreditCard },
-    { id: "splits", label: "Group Splits", icon: Users },
-    { id: "security", label: "Security & Audits", icon: Shield }
+    { id: "agents", label: "AI Agents", icon: Cpu },
+    { id: "policies", label: "Spend Policies", icon: Shield },
+    { id: "simulator", label: "Agent Simulator", icon: ArrowRight },
+    { id: "transactions", label: "Transactions", icon: CreditCard },
+    { id: "audits", label: "Audit Logs", icon: Clock },
+    { id: "security", label: "Firewall Security", icon: ShieldAlert }
   ];
 
   return (
@@ -395,44 +393,37 @@ export default function Page() {
                 onRejectPayment={handleRejectPayment}
               />
             )}
-            {activeTab === "wallet" && (
-              <WalletCard
+            {activeTab === "policies" && (
+              <SpendPolicies
                 token={token}
-                walletData={walletData}
+                agents={agents}
                 refreshData={() => fetchEverything(token)}
               />
             )}
-            {activeTab === "services" && (
-              <ServiceMarket
+            {activeTab === "simulator" && (
+              <AgentSimulator
                 token={token}
-                services={services}
-                refreshData={() => fetchEverything(token)}
-                developerDashboard={devDashboard}
+                agents={agents}
+                refreshGlobalData={() => fetchEverything(token)}
               />
             )}
-            {activeTab === "escrow" && (
-              <EscrowPortal
+            {activeTab === "transactions" && (
+              <Transactions
                 token={token}
-                escrows={escrows}
-                refreshData={() => fetchEverything(token)}
-                userRole={userRole}
               />
             )}
-            {activeTab === "upi" && (
-              <UpiBridge
+            {activeTab === "audits" && (
+              <AuditLogs
+                audit_logs={securityData?.audit_logs || []}
+              />
+            )}
+            {activeTab === "security" && (
+              <SecurityCenter
                 token={token}
+                securityData={securityData}
                 refreshData={() => fetchEverything(token)}
               />
             )}
-            {activeTab === "splits" && (
-              <BillSplitter
-                token={token}
-                splits={splits}
-                refreshData={() => fetchEverything(token)}
-                allZpayIds={[userZpayId, ...agents.map(a => a.zpay_id)]}
-              />
-            )}
-            {activeTab === "security" && <SecurityCenter securityData={securityData} />}
           </>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-500 py-32 space-y-4">

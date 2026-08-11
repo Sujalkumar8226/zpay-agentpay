@@ -28,6 +28,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Zpay AgentPay API", version="1.0.0")
 from fastapi.middleware.cors import CORSMiddleware
 
+KILL_SWITCH_ACTIVE = False
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -273,7 +275,7 @@ def create_agent(
     daily_limit: float = 10.0,
     transaction_limit: float = 1.0,
     approval_threshold: float = 0.5,
-    allowed_categories: List[str] = Query(default=["research", "data", "ai", "translation"]),
+    allowed_categories: List[str] = Query(default=["weather-api", "research-api", "travel-api", "analysis-api", "weather", "research", "travel", "analysis", "data", "ai", "translation"]),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -413,14 +415,24 @@ def run_agent_task(
         "status": task.status
     }
 
+from pydantic import BaseModel
+
+class PolicyUpdateRequest(BaseModel):
+    daily_limit: Optional[float] = None
+    transaction_limit: Optional[float] = None
+    approval_threshold: Optional[float] = None
+    allowed_categories: Optional[List[str]] = None
+    blocked_categories: Optional[List[str]] = None
+
 @app.patch("/api/agents/{agent_id}/policy")
 def update_agent_policy(
     agent_id: int,
+    payload: Optional[PolicyUpdateRequest] = None,
     daily_limit: Optional[float] = None,
     transaction_limit: Optional[float] = None,
     approval_threshold: Optional[float] = None,
-    allowed_categories: Optional[List[str]] = None,
-    blocked_categories: Optional[List[str]] = None,
+    allowed_categories: Optional[List[str]] = Query(default=None),
+    blocked_categories: Optional[List[str]] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -432,16 +444,22 @@ def update_agent_policy(
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
 
-    if daily_limit is not None:
-        policy.daily_limit = daily_limit
-    if transaction_limit is not None:
-        policy.transaction_limit = transaction_limit
-    if approval_threshold is not None:
-        policy.approval_threshold = approval_threshold
-    if allowed_categories is not None:
-        policy.allowed_categories = allowed_categories
-    if blocked_categories is not None:
-        policy.blocked_categories = blocked_categories
+    d_limit = daily_limit if daily_limit is not None else (payload.daily_limit if payload else None)
+    t_limit = transaction_limit if transaction_limit is not None else (payload.transaction_limit if payload else None)
+    a_threshold = approval_threshold if approval_threshold is not None else (payload.approval_threshold if payload else None)
+    a_cats = allowed_categories if allowed_categories is not None else (payload.allowed_categories if payload else None)
+    b_cats = blocked_categories if blocked_categories is not None else (payload.blocked_categories if payload else None)
+
+    if d_limit is not None:
+        policy.daily_limit = d_limit
+    if t_limit is not None:
+        policy.transaction_limit = t_limit
+    if a_threshold is not None:
+        policy.approval_threshold = a_threshold
+    if a_cats is not None:
+        policy.allowed_categories = a_cats
+    if b_cats is not None:
+        policy.blocked_categories = b_cats
 
     db.commit()
     log_audit(db, current_user.id, agent.id, "POLICY_UPDATE", "SUCCESS", "Updated spending policy limits.")
@@ -586,22 +604,49 @@ def approve_pending_payment(
     approval.decided_at = datetime.utcnow()
     db.commit()
 
-    log_audit(db, current_user.id, agent.id, "MANUAL_PAYMENT_APPROVED", "SUCCESS", f"User approved payment for {payment.service.name}")
+    log_audit(db, current_user.id, agent.id, "MANUAL_PAYMENT_APPROVED", "SUCCESS", f"User approved payment for {payment.service.name if payment.service else 'Service'}")
 
     # Resume the agent's task! In demo mode, we launch the task again
     # We find the failed/paused task and resume it
-    paused_task = db.query(AgentTask).filter(
-        AgentTask.agent_id == agent.id,
-        AgentTask.status == "FAILED"
-    ).order_by(AgentTask.created_at.desc()).first()
+    paused_task = None
+    if payment.task_id:
+        paused_task = db.query(AgentTask).filter(
+            AgentTask.agent_id == agent.id,
+            AgentTask.status == "FAILED"
+        ).order_by(AgentTask.created_at.desc()).first()
 
     if paused_task:
         paused_task.status = "RUNNING"
         db.commit()
-        # Resume task runner (it will bypass policy validation for this payment challenge because status is already AUTHORIZED)
+        # Resume task runner
         background_tasks.add_task(AgentRunner.execute_task, paused_task.id)
+    else:
+        # Simulate immediate sandbox payment success
+        import uuid
+        tx_hash = f"sim_tx_{uuid.uuid4().hex}"
+        PaymentIntentManager.transition(db, payment, "SUBMITTED", tx_hash=tx_hash)
+        PaymentIntentManager.transition(db, payment, "VERIFYING")
+        PaymentIntentManager.transition(db, payment, "VERIFIED")
+        PaymentIntentManager.transition(db, payment, "RESOURCE_UNLOCKED")
+        PaymentIntentManager.transition(db, payment, "COMPLETED")
+        
+        # Record Transaction
+        db.add(Transaction(
+            wallet_id=agent.wallet.id,
+            tx_hash=tx_hash,
+            amount=payment.amount,
+            asset=payment.asset,
+            fee=0.0001,
+            sender=agent.wallet.public_key,
+            receiver=payment.destination,
+            status="CONFIRMED",
+            memo=payment.challenge[:28]
+        ))
+        db.commit()
 
-    return {"success": True, "message": "Payment manual authorization successful. Agent task resumed."}
+        log_audit(db, current_user.id, agent.id, "PAYMENT_SETTLEMENT", "SUCCESS", f"Sandbox simulated payment settled for {payment.service.name if payment.service else 'Service'} (Tx: {tx_hash})")
+
+    return {"success": True, "message": "Payment manual authorization successful."}
 
 @app.post("/api/payments/{payment_id}/reject")
 def reject_pending_payment(payment_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1126,18 +1171,32 @@ def get_dashboard_analytics(current_user: User = Depends(get_current_user), db: 
         PaymentIntent.status.in_(["RESOURCE_UNLOCKED", "COMPLETED"])
     ).count()
 
-    blocked_count = db.query(PaymentIntent).filter(
+    blocked_payments_list = db.query(PaymentIntent).filter(
         PaymentIntent.agent_id.in_(agent_ids) if agent_ids else False,
-        PaymentIntent.status == "DENIED"
+        PaymentIntent.status == "FAILED"
+    ).all()
+    blocked_count = len(blocked_payments_list)
+    prevented_spending = sum(p.amount for p in blocked_payments_list)
+
+    pending_count = db.query(PaymentIntent).filter(
+        PaymentIntent.agent_id.in_(agent_ids) if agent_ids else False,
+        PaymentIntent.status == "APPROVAL_REQUIRED"
     ).count()
+
+    # Calculate average risk score
+    all_assessments = db.query(RiskAssessment).join(PaymentIntent).filter(
+        PaymentIntent.agent_id.in_(agent_ids) if agent_ids else False
+    ).all()
+    avg_risk = sum(r.score for r in all_assessments) / len(all_assessments) if all_assessments else 0.0
 
     # Gas sponsored count: we simulate this based on agent payments (Zpay sponsors fee- payer tx)
     gas_sponsored_xlm = len(agent_payments) * 0.0001 # 100 stroops per tx sponsored
 
     # Transaction list
     tx_history = db.query(Transaction).filter(
-        (Transaction.sender == wallet.public_key) | (Transaction.receiver == wallet.public_key)
-    ).order_by(Transaction.created_at.desc()).limit(10).all()
+        (Transaction.sender == wallet.public_key) | (Transaction.receiver == wallet.public_key) | 
+        (Transaction.wallet_id.in_([a.wallet.id for a in agents]) if agents else False)
+    ).order_by(Transaction.created_at.desc()).limit(15).all()
 
     # Dynamic line chart data: Spending over past 7 days
     # We group successful agent payments by date
@@ -1162,6 +1221,9 @@ def get_dashboard_analytics(current_user: User = Depends(get_current_user), db: 
         "agent_total_spent_xlm": agent_total_spent,
         "successful_payments": success_count,
         "blocked_payments": blocked_count,
+        "pending_payments": pending_count,
+        "prevented_spending_xlm": prevented_spending,
+        "average_risk_score": avg_risk,
         "gas_sponsored_xlm": gas_sponsored_xlm,
         "spending_chart": chart_data,
         "recent_transactions": [
@@ -1206,3 +1268,269 @@ def get_security_details(current_user: User = Depends(get_current_user), db: Ses
 def uuid_str() -> str:
     import uuid
     return str(uuid.uuid4()).replace("-", "")
+
+# --- SENTINEL AGENT SPEND POLICY GUARD ENDPOINTS ---
+
+from pydantic import BaseModel
+
+class PaymentRequestPayload(BaseModel):
+    agent_id: int
+    merchant: str
+    amount: float
+    currency: str
+    service: str
+    purpose: str
+    idempotency_key: Optional[str] = None
+
+@app.post("/api/payment-request")
+def execute_payment_request(
+    payload: PaymentRequestPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    global KILL_SWITCH_ACTIVE
+    
+    # 1. Check if agent exists and belongs to user
+    agent = db.query(Agent).filter(Agent.id == payload.agent_id, Agent.user_id == current_user.id).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent profile not found.")
+        
+    # 2. Check Idempotency Key
+    if payload.idempotency_key:
+        existing_pi = db.query(PaymentIntent).filter(
+            PaymentIntent.agent_id == agent.id,
+            PaymentIntent.idempotency_key == payload.idempotency_key
+        ).first()
+        if existing_pi:
+            risk_assess = existing_pi.risk_assessment
+            risk_score = risk_assess.score if risk_assess else 0
+            risk_factors = risk_assess.details.get("reasons", []) if (risk_assess and risk_assess.details) else []
+            
+            return {
+                "success": existing_pi.status == "COMPLETED",
+                "decision": existing_pi.policy_decision or "BLOCKED",
+                "payment_id": existing_pi.id,
+                "tx_hash": existing_pi.tx_hash,
+                "policy_checks": {
+                    "agent_active": existing_pi.status != "FAILED",
+                    "transaction_limit": existing_pi.status != "FAILED",
+                    "daily_budget": existing_pi.status != "FAILED",
+                    "merchant_allowed": existing_pi.status != "FAILED",
+                    "velocity_normal": existing_pi.status != "FAILED",
+                    "risk_normal": existing_pi.status != "APPROVAL_REQUIRED"
+                },
+                "risk_score": risk_score,
+                "risk_factors": risk_factors,
+                "reasons": [existing_pi.error_message or "Previous duplicate transaction found."]
+            }
+
+    # 3. Find or create the service
+    service = db.query(Service).filter(Service.name == payload.service).first()
+    if not service:
+        from backend.models import ServiceProvider
+        provider = db.query(ServiceProvider).first()
+        if not provider:
+            provider = ServiceProvider(user_id=agent.user_id, name="Sandbox Provider", balance=0.0)
+            db.add(provider)
+            db.commit()
+            db.refresh(provider)
+        
+        wallet = db.query(Wallet).filter(Wallet.user_id == provider.user_id).first()
+        service_address = wallet.public_key if wallet else "GBBD47NESK5CX7D7RMM6YW7QD66JHBIZ4KCO62D2CBEEOCOZAFSU7G3O"
+
+        service = Service(
+            provider_id=provider.id,
+            name=payload.service,
+            description=f"Sandbox {payload.service} service",
+            price=payload.amount,
+            category=payload.service.split("-")[0] if "-" in payload.service else "data",
+            url=f"/api/x402/{payload.service}",
+            address=service_address,
+            asset=payload.currency,
+            network="stellar:testnet"
+        )
+        db.add(service)
+        db.commit()
+        db.refresh(service)
+
+    # 4. Generate challenge nonce
+    import uuid
+    challenge_nonce = str(uuid.uuid4())
+    from datetime import timedelta
+    
+    # 5. Create Payment Intent
+    from backend.payment_intent import PaymentIntentManager
+    expires = datetime.utcnow() + timedelta(minutes=10)
+    intent = PaymentIntent(
+        user_id=current_user.id,
+        agent_id=agent.id,
+        service_id=service.id,
+        amount=payload.amount,
+        asset=payload.currency,
+        network="stellar:testnet",
+        destination=service.address,
+        status="CREATED",
+        challenge=challenge_nonce,
+        idempotency_key=payload.idempotency_key,
+        expires_at=expires
+    )
+    db.add(intent)
+    db.commit()
+    db.refresh(intent)
+
+    # 6. Evaluate against firewall
+    from backend.firewall import PaymentFirewall
+    evaluation = PaymentFirewall.evaluate(db, intent, kill_switch_active=KILL_SWITCH_ACTIVE)
+    
+    decision = evaluation["decision"]
+    reasons = evaluation["reasons"]
+    risk_score = evaluation["risk_score"]
+    risk_factors = evaluation["risk_factors"]
+    policy_checks = evaluation["policy_checks"]
+    
+    # Save decision in PaymentIntent
+    intent.policy_decision = decision
+    intent.risk_decision = "HIGH" if risk_score >= 80 else ("MEDIUM" if risk_score >= 50 else "LOW")
+    db.commit()
+
+    # Create Risk Assessment record
+    risk_assess = RiskAssessment(
+        payment_intent_id=intent.id,
+        payment_id=intent.id,
+        score=risk_score,
+        risk_level=intent.risk_decision,
+        details={"reasons": risk_factors}
+    )
+    db.add(risk_assess)
+    db.commit()
+
+    # 7. Act based on firewall decision
+    if decision == "BLOCKED":
+        PaymentIntentManager.transition(db, intent, "PAYMENT_REQUIRED")
+        PaymentIntentManager.transition(db, intent, "POLICY_CHECK")
+        PaymentIntentManager.transition(db, intent, "RISK_CHECK")
+        PaymentIntentManager.transition(db, intent, "FAILED", error_message=reasons[0])
+        log_audit(db, current_user.id, agent.id, "PAYMENT_BLOCKED", "BLOCKED", f"Blocked: {reasons[0]}")
+        return {
+            "success": False,
+            "decision": "BLOCKED",
+            "payment_id": intent.id,
+            "policy_checks": policy_checks,
+            "risk_score": risk_score,
+            "risk_factors": risk_factors,
+            "reasons": reasons
+        }
+        
+    elif decision == "PENDING_APPROVAL":
+        PaymentIntentManager.transition(db, intent, "PAYMENT_REQUIRED")
+        PaymentIntentManager.transition(db, intent, "POLICY_CHECK")
+        PaymentIntentManager.transition(db, intent, "RISK_CHECK")
+        PaymentIntentManager.transition(db, intent, "APPROVAL_REQUIRED", error_message=reasons[0])
+        
+        # Create approval request
+        approval = ApprovalRequest(
+            payment_intent_id=intent.id,
+            payment_id=intent.id,
+            requester_id=current_user.id,
+            status="PENDING"
+        )
+        db.add(approval)
+        db.commit()
+        
+        log_audit(db, current_user.id, agent.id, "PAYMENT_PENDING_APPROVAL", "PENDING", f"Risk triggers manual hold: {reasons[0]}")
+        return {
+            "success": False,
+            "decision": "PENDING_APPROVAL",
+            "payment_id": intent.id,
+            "policy_checks": policy_checks,
+            "risk_score": risk_score,
+            "risk_factors": risk_factors,
+            "reasons": reasons
+        }
+
+    # APPROVED
+    # Proceed to Sandbox Payment Simulation
+    PaymentIntentManager.transition(db, intent, "PAYMENT_REQUIRED")
+    PaymentIntentManager.transition(db, intent, "POLICY_CHECK")
+    PaymentIntentManager.transition(db, intent, "RISK_CHECK")
+    PaymentIntentManager.transition(db, intent, "AUTHORIZED")
+    
+    # 8. Settle immediately in sandbox mode
+    tx_hash = f"sim_tx_{uuid.uuid4().hex}"
+    
+    PaymentIntentManager.transition(db, intent, "SUBMITTED", tx_hash=tx_hash)
+    PaymentIntentManager.transition(db, intent, "VERIFYING")
+    PaymentIntentManager.transition(db, intent, "VERIFIED")
+    PaymentIntentManager.transition(db, intent, "RESOURCE_UNLOCKED")
+    PaymentIntentManager.transition(db, intent, "COMPLETED")
+
+    # Record Transaction
+    db.add(Transaction(
+        wallet_id=agent.wallet.id,
+        tx_hash=tx_hash,
+        amount=payload.amount,
+        asset=payload.currency,
+        fee=0.0001,
+        sender=agent.wallet.public_key,
+        receiver=service.address,
+        status="CONFIRMED",
+        memo=challenge_nonce[:28]
+    ))
+    db.commit()
+
+    log_audit(db, current_user.id, agent.id, "PAYMENT_SETTLEMENT", "SUCCESS", f"Sandbox simulated payment settled for {service.name} (Tx: {tx_hash})")
+    
+    return {
+        "success": True,
+        "decision": "APPROVED",
+        "payment_id": intent.id,
+        "tx_hash": tx_hash,
+        "policy_checks": policy_checks,
+        "risk_score": risk_score,
+        "risk_factors": risk_factors,
+        "reasons": reasons
+    }
+
+@app.get("/api/security/kill-switch")
+def get_kill_switch_status():
+    global KILL_SWITCH_ACTIVE
+    return {"kill_switch_active": KILL_SWITCH_ACTIVE}
+
+@app.post("/api/security/kill-switch/toggle")
+def toggle_kill_switch(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    global KILL_SWITCH_ACTIVE
+    KILL_SWITCH_ACTIVE = not KILL_SWITCH_ACTIVE
+    status_str = "ENABLED" if KILL_SWITCH_ACTIVE else "DISABLED"
+    log_audit(db, current_user.id, None, "KILL_SWITCH_TOGGLED", "SUCCESS", f"Global security payment kill switch set to {status_str}")
+    return {"success": True, "kill_switch_active": KILL_SWITCH_ACTIVE, "message": f"Global payment kill switch {status_str.lower()} successfully."}
+
+@app.get("/api/transactions")
+def get_payment_intents(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    agents = db.query(Agent).filter(Agent.user_id == current_user.id).all()
+    agent_ids = [a.id for a in agents]
+    if not agent_ids:
+        return []
+        
+    intents = db.query(PaymentIntent).filter(
+        PaymentIntent.agent_id.in_(agent_ids)
+    ).order_by(PaymentIntent.created_at.desc()).all()
+    
+    res = []
+    for pi in intents:
+        risk_assess = pi.risk_assessment
+        risk_score = risk_assess.score if risk_assess else 0
+        res.append({
+            "id": pi.id,
+            "agent_name": pi.agent.name if pi.agent else "Unknown Agent",
+            "merchant": pi.service.name if pi.service else "unknown-api",
+            "amount": pi.amount,
+            "asset": pi.asset,
+            "decision": pi.policy_decision or "BLOCKED",
+            "status": pi.status,
+            "tx_hash": pi.tx_hash or "N/A",
+            "risk_score": risk_score,
+            "timestamp": pi.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "reason": pi.error_message or "Approved"
+        })
+    return res
+
