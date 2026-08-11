@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { 
   Cpu, Wallet, Globe, Scale, Users, Shield, CreditCard, 
   LayoutDashboard, LogOut, ArrowRight, UserPlus, ShieldAlert, RefreshCw, Clock
@@ -68,15 +69,15 @@ export default function Page() {
         devRes,
         approvalsRes
       ] = await Promise.all([
-        axios.get("http://localhost:8000/api/wallet", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/analytics", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/agents", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/services", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/escrow", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/split", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/security", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/developer/dashboard", { headers }).catch(() => null),
-        axios.get("http://localhost:8000/api/payments/approvals", { headers }).catch(() => null)
+        axios.get(`${API_BASE_URL}/api/wallet`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/analytics`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/agents`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/services`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/escrow`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/split`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/security`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/developer/dashboard`, { headers }).catch(() => null),
+        axios.get(`${API_BASE_URL}/api/payments/approvals`, { headers }).catch(() => null)
       ]);
 
       if (walletRes) {
@@ -119,7 +120,7 @@ export default function Page() {
       if (isRegister) {
         // Register Call
         const res = await axios.post(
-          `http://localhost:8000/api/auth/register?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&pin=${pin}&username=${encodeURIComponent(username)}`
+          `${API_BASE_URL}/api/auth/register?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&pin=${pin}&username=${encodeURIComponent(username)}`
         );
         if (res.data.success) {
           // Flip to login
@@ -134,7 +135,7 @@ export default function Page() {
         params.append("username", email);
         params.append("password", password);
 
-        const res = await axios.post("http://localhost:8000/api/auth/login", params, {
+        const res = await axios.post(`${API_BASE_URL}/api/auth/login`, params, {
           headers: { "Content-Type": "application/x-www-form-urlencoded" }
         });
 
@@ -164,7 +165,7 @@ export default function Page() {
     if (!token) return;
     try {
       await axios.post(
-        `http://localhost:8000/api/payments/${paymentId}/approve`,
+        `${API_BASE_URL}/api/payments/${paymentId}/approve`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -178,7 +179,7 @@ export default function Page() {
     if (!token) return;
     try {
       await axios.post(
-        `http://localhost:8000/api/payments/${paymentId}/reject`,
+        `${API_BASE_URL}/api/payments/${paymentId}/reject`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

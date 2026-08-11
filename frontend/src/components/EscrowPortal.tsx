@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ShieldCheck, Plus, Send, Gavel, Scale, Lock, RefreshCw, XCircle } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface Escrow {
   id: number;
@@ -46,7 +47,7 @@ export default function EscrowPortal({ token, escrows, refreshData, userRole }: 
     setDepositing(true);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/escrow?seller_zpay_id=${encodeURIComponent(sellerId)}&amount=${amount}&details=${encodeURIComponent(details)}`,
+        `${API_BASE_URL}/api/escrow?seller_zpay_id=${encodeURIComponent(sellerId)}&amount=${amount}&details=${encodeURIComponent(details)}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -69,7 +70,7 @@ export default function EscrowPortal({ token, escrows, refreshData, userRole }: 
     if (!confirm("Are you sure you want to release these funds to the seller?")) return;
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/escrow/${escrowId}/release`,
+        `${API_BASE_URL}/api/escrow/${escrowId}/release`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -86,7 +87,7 @@ export default function EscrowPortal({ token, escrows, refreshData, userRole }: 
     if (!confirm("Are you sure you want to refund these funds back to the buyer?")) return;
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/escrow/${escrowId}/refund`,
+        `${API_BASE_URL}/api/escrow/${escrowId}/refund`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -104,7 +105,7 @@ export default function EscrowPortal({ token, escrows, refreshData, userRole }: 
     if (disputeEscrowId === null || !disputeReason) return;
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/escrow/${disputeEscrowId}/dispute?reason=${encodeURIComponent(disputeReason)}`,
+        `${API_BASE_URL}/api/escrow/${disputeEscrowId}/dispute?reason=${encodeURIComponent(disputeReason)}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

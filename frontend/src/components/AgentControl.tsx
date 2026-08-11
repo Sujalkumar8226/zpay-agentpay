@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Cpu, Plus, Sparkles, Send, Play, ShieldAlert, CheckCircle, XCircle, ArrowRight, Settings } from "lucide-react";
 import PaymentTrace from "./PaymentTrace";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface Agent {
   id: number;
@@ -83,7 +84,7 @@ export default function AgentControl({
       intervalId = setInterval(async () => {
         try {
           const res = await axios.get(
-            `http://localhost:8000/api/agents/${selectedAgentId}/tasks`,
+            `${API_BASE_URL}/api/agents/${selectedAgentId}/tasks`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const tasks: Task[] = res.data;
@@ -140,7 +141,7 @@ export default function AgentControl({
 
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/agents/${selectedAgentId}/tasks?goal=${encodeURIComponent(prompt)}`,
+        `${API_BASE_URL}/api/agents/${selectedAgentId}/tasks?goal=${encodeURIComponent(prompt)}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -157,7 +158,7 @@ export default function AgentControl({
     e.preventDefault();
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/agents?name=${encodeURIComponent(newName)}&purpose=${encodeURIComponent(newPurpose)}&daily_limit=${newDailyLimit}&transaction_limit=${newTxLimit}&approval_threshold=${newApprovalThreshold}`,
+        `${API_BASE_URL}/api/agents?name=${encodeURIComponent(newName)}&purpose=${encodeURIComponent(newPurpose)}&daily_limit=${newDailyLimit}&transaction_limit=${newTxLimit}&approval_threshold=${newApprovalThreshold}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -191,7 +192,7 @@ export default function AgentControl({
     if (!selectedAgentId) return;
     try {
       await axios.patch(
-        `http://localhost:8000/api/agents/${selectedAgentId}/policy?daily_limit=${editDailyLimit}&transaction_limit=${editTxLimit}&approval_threshold=${editApprovalThreshold}`,
+        `${API_BASE_URL}/api/agents/${selectedAgentId}/policy?daily_limit=${editDailyLimit}&transaction_limit=${editTxLimit}&approval_threshold=${editApprovalThreshold}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Wallet, Send, ArrowDownLeft, ArrowUpRight, Copy, Check, ShieldCheck, Key } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface Transaction {
   tx_hash: string;
@@ -53,7 +54,7 @@ export default function WalletCard({ token, walletData, refreshData }: WalletCar
     setTransferring(true);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/wallet/send?to_zpay_id=${encodeURIComponent(recipientId)}&amount=${amount}&asset=${asset}&pin=${pin}`,
+        `${API_BASE_URL}/api/wallet/send?to_zpay_id=${encodeURIComponent(recipientId)}&amount=${amount}&asset=${asset}&pin=${pin}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

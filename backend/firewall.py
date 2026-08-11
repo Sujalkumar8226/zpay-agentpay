@@ -104,7 +104,7 @@ class PaymentFirewall:
             }
 
         # B. Daily spending limit check
-        today_start = datetime.datetime.combine(datetime.date.today(), datetime.time.min)
+        today_start = datetime.datetime.combine(datetime.datetime.utcnow().date(), datetime.time.min)
         today_payments = db.query(PaymentIntent).filter(
             PaymentIntent.agent_id == agent.id,
             PaymentIntent.status.in_(["RESOURCE_UNLOCKED", "COMPLETED"]),

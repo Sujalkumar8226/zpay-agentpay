@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Plus, Users, DollarSign, Send, ShieldCheck, CheckCircle } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface SplitMember {
   zpay_id: string;
@@ -49,7 +50,7 @@ export default function BillSplitter({ token, splits, refreshData, allZpayIds }:
 
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/split?description=${encodeURIComponent(description)}&total_amount=${totalAmount}`,
+        `${API_BASE_URL}/api/split?description=${encodeURIComponent(description)}&total_amount=${totalAmount}`,
         members,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -72,7 +73,7 @@ export default function BillSplitter({ token, splits, refreshData, allZpayIds }:
     setPayingSplitId(splitId);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/split/${splitId}/pay`,
+        `${API_BASE_URL}/api/split/${splitId}/pay`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

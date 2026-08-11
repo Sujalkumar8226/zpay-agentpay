@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { Settings, CheckCircle, XCircle, ShieldAlert, Cpu } from "lucide-react";
 
 interface Agent {
@@ -65,7 +66,7 @@ export default function SpendPolicies({ token, agents, refreshData }: SpendPolic
     try {
       // API call to update policy
       await axios.patch(
-        `http://localhost:8000/api/agents/${selectedAgentId}/policy`,
+        `${API_BASE_URL}/api/agents/${selectedAgentId}/policy`,
         {
           daily_limit: dailyLimit,
           transaction_limit: txLimit,

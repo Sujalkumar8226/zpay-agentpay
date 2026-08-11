@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { CreditCard, ArrowRight, ShieldCheck, RefreshCw, Send, CheckCircle } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface UpiBridgeProps {
   token: string;
@@ -34,7 +35,7 @@ export default function UpiBridge({ token, refreshData }: UpiBridgeProps) {
     setSettledTxHash(null);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/upi/simulate?upi_id=${encodeURIComponent(upiId)}&amount_inr=${amountInr}&merchant_name=${encodeURIComponent(merchantName)}`,
+        `${API_BASE_URL}/api/upi/simulate?upi_id=${encodeURIComponent(upiId)}&amount_inr=${amountInr}&merchant_name=${encodeURIComponent(merchantName)}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -60,7 +61,7 @@ export default function UpiBridge({ token, refreshData }: UpiBridgeProps) {
     setSettling(true);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/upi/${checkoutData.payment_id}/settle`,
+        `${API_BASE_URL}/api/upi/${checkoutData.payment_id}/settle`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

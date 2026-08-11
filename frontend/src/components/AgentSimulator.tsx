@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { 
   Play, Cpu, ShieldCheck, XCircle, Clock, AlertTriangle, Shield, CheckCircle, RefreshCw, Info, Lock
 } from "lucide-react";
@@ -108,7 +109,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
       if (type === "HIGH_VELOCITY") {
         // Send first 5 requests in background to exhaust rate
         for (let i = 0; i < 5; i++) {
-          axios.post("http://localhost:8000/api/payment-request", {
+          axios.post(`${API_BASE_URL}/api/payment-request`, {
             ...payload,
             idempotency_key: `vel_${i}_${Date.now()}`,
             amount: 0.1,
@@ -123,7 +124,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
       if (type === "DAILY_BUDGET") {
         // Send 11 sequential requests in background to exhaust daily budget of 10.0
         for (let i = 0; i < 11; i++) {
-          await axios.post("http://localhost:8000/api/payment-request", {
+          await axios.post(`${API_BASE_URL}/api/payment-request`, {
             agent_id: selectedAgentId,
             merchant: "research-api",
             amount: 0.90,
@@ -140,7 +141,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
       if (type === "HIGH_RISK") {
         // Send 3 requests in background to add +25 velocity risk
         for (let i = 0; i < 3; i++) {
-          await axios.post("http://localhost:8000/api/payment-request", {
+          await axios.post(`${API_BASE_URL}/api/payment-request`, {
             agent_id: selectedAgentId,
             merchant: "research-api",
             amount: 0.20,
@@ -154,7 +155,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      const res = await axios.post("http://localhost:8000/api/payment-request", payload, { headers });
+      const res = await axios.post(`${API_BASE_URL}/api/payment-request`, payload, { headers });
       const data = res.data;
       
       setDecision(data.decision);
@@ -177,7 +178,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
     if (!paymentId) return;
     try {
       setLoading(true);
-      const res = await axios.post(`http://localhost:8000/api/payments/${paymentId}/approve`, {}, {
+      const res = await axios.post(`${API_BASE_URL}/api/payments/${paymentId}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
@@ -198,7 +199,7 @@ export default function AgentSimulator({ token, agents, refreshGlobalData }: Age
     if (!paymentId) return;
     try {
       setLoading(true);
-      const res = await axios.post(`http://localhost:8000/api/payments/${paymentId}/reject`, {}, {
+      const res = await axios.post(`${API_BASE_URL}/api/payments/${paymentId}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {

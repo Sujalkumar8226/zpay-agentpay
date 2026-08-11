@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { ShieldCheck, Lock, ShieldAlert, Clock, Shield, RefreshCw } from "lucide-react";
 
 interface AuditLog {
@@ -42,7 +43,7 @@ export default function SecurityCenter({ token, securityData, refreshData }: Sec
   // Poll kill switch state
   const checkKillSwitch = async () => {
     try {
-      const res = await axios.get("http://localhost:8000/api/security/kill-switch", {
+      const res = await axios.get(`${API_BASE_URL}/api/security/kill-switch`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setKillSwitchActive(res.data.kill_switch_active);
@@ -60,7 +61,7 @@ export default function SecurityCenter({ token, securityData, refreshData }: Sec
   const toggleKillSwitch = async () => {
     setLoading(true);
     try {
-      const res = await axios.post("http://localhost:8000/api/security/kill-switch/toggle", {}, {
+      const res = await axios.post(`${API_BASE_URL}/api/security/kill-switch/toggle`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setKillSwitchActive(res.data.kill_switch_active);

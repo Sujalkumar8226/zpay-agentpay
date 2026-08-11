@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { CreditCard, CheckCircle, XCircle, Clock, Search, RefreshCw } from "lucide-react";
 
 interface TransactionItem {
@@ -29,7 +30,7 @@ export default function Transactions({ token }: TransactionsProps) {
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://localhost:8000/api/transactions", {
+      const res = await axios.get(`${API_BASE_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTransactions(res.data);

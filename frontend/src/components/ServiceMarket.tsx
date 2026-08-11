@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Cpu, Globe, Sparkles, Plus, CheckCircle, BarChart, Code, BookOpen } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 interface Service {
   id: number;
@@ -54,7 +55,7 @@ export default function ServiceMarket({ token, services, refreshData, developerD
     setSubmitting(true);
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/services?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&price=${price}&category=${category}&url=${encodeURIComponent(url)}&asset=${asset}`,
+        `${API_BASE_URL}/api/services?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&price=${price}&category=${category}&url=${encodeURIComponent(url)}&asset=${asset}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
